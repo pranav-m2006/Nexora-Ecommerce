@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { registerSchema } from "@/lib/validations";
-import { userRepo } from "@/lib/backend/db";
+import { userRepo, hasSupabaseConfig } from "@/lib/backend/db";
 import { hashPassword, setSessionCookie } from "@/lib/backend/auth-service";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
@@ -26,8 +28,30 @@ export async function POST(request: Request) {
       );
     }
 
+    let userId: string = crypto.randomUUID();
+
+    // Create user in Supabase Auth if credentials configured
+    if (hasSupabaseConfig() && supabaseAdmin) {
+      try {
+        const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: fullName,
+            phone: phone || "",
+          },
+        });
+        if (!authErr && authData?.user) {
+          userId = authData.user.id;
+        }
+      } catch (e) {
+        console.warn("Supabase Auth admin registration fallback:", e);
+      }
+    }
+
     const newUser = await userRepo.create({
-      id: `usr-${Date.now()}`,
+      id: userId,
       email,
       fullName,
       phone: phone || "",

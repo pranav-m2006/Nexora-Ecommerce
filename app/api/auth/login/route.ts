@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { loginSchema } from "@/lib/validations";
-import { userRepo } from "@/lib/backend/db";
+import { userRepo, hasSupabaseConfig, DbUser } from "@/lib/backend/db";
 import { hashPassword, setSessionCookie } from "@/lib/backend/auth-service";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +20,41 @@ export async function POST(request: Request) {
     const user = await userRepo.getByEmail(email);
 
     if (!user) {
+      // Check Supabase Auth if user exists remotely
+      if (hasSupabaseConfig() && supabaseAdmin) {
+        try {
+          const { data: authData, error: authErr } = await supabaseAdmin.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (!authErr && authData?.user) {
+            const profile = await userRepo.getById(authData.user.id);
+            const verifiedUser: DbUser = profile || {
+              id: authData.user.id,
+              email: authData.user.email || email,
+              fullName: authData.user.user_metadata?.full_name || email.split("@")[0],
+              phone: authData.user.user_metadata?.phone,
+              role: "customer",
+              createdAt: authData.user.created_at,
+            };
+            const token = await setSessionCookie(verifiedUser);
+            return NextResponse.json({
+              success: true,
+              user: {
+                id: verifiedUser.id,
+                email: verifiedUser.email,
+                name: verifiedUser.fullName,
+                role: verifiedUser.role,
+                phone: verifiedUser.phone,
+              },
+              token,
+            });
+          }
+        } catch (e) {
+          console.warn("Supabase auth login fallback:", e);
+        }
+      }
+
       // If demo user or first time testing, provide seamless account on demand
       if (email === "alex.rivera@example.com" || email === "admin@nexora.com") {
         const fallbackUser = await userRepo.getById(

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { productRepo, db } from "@/lib/backend/db";
+import { productRepo, reviewRepo } from "@/lib/backend/db";
 import { reviewCreateSchema } from "@/lib/validations";
 import { requireAuth } from "@/lib/backend/auth-service";
 
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    const reviews = db.reviews.get(product.id) || [];
+    const reviews = await reviewRepo.getByProductId(product.id);
     return NextResponse.json({ success: true, reviews });
   } catch (error: any) {
     return NextResponse.json(
@@ -55,9 +55,7 @@ export async function POST(
       helpfulCount: 0,
     };
 
-    const currentList = db.reviews.get(product.id) || [];
-    currentList.unshift(newReview);
-    db.reviews.set(product.id, currentList);
+    await reviewRepo.addReview(product.id, newReview, user.id);
 
     // Update product rating & count
     product.reviewCount += 1;

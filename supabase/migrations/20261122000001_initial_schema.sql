@@ -1,4 +1,3 @@
-
 -- ====================================================================
 -- NEXORA MARKETPLACE — COMPREHENSIVE DATABASE SCHEMA (v1.0)
 -- 17 Tables with UUID Primary Keys, Foreign Keys, Indexes & Constraints
@@ -8,11 +7,20 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Helper function to auto-update updated_at timestamp
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = TIMEZONE('utc', NOW());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- --------------------------------------------------------------------
 -- 1. PROFILES (Extends Supabase auth.users)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     full_name TEXT NOT NULL,
     phone TEXT,
@@ -23,8 +31,24 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 
+-- Safely add foreign key to auth.users if auth schema is available
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'auth' AND tablename = 'users') THEN
+        BEGIN
+            ALTER TABLE public.profiles 
+            ADD CONSTRAINT fk_profiles_auth_users 
+            FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        EXCEPTION WHEN duplicate_object THEN
+            NULL;
+        WHEN others THEN
+            NULL;
+        END;
+    END IF;
+END $$;
+
 -- --------------------------------------------------------------------
--- 2. USER ROLES (Strict role-based access control: customer, admin)
+-- 2. USER ROLES (Strict role-based access control: customer, admin, staff)
 -- --------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.user_roles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -46,6 +70,8 @@ CREATE TABLE IF NOT EXISTS public.categories (
     description TEXT,
     image_url TEXT NOT NULL,
     item_count INT NOT NULL DEFAULT 0,
+    subcategories TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    is_active BOOLEAN NOT NULL DEFAULT true,
     is_featured BOOLEAN NOT NULL DEFAULT false,
     display_order INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW()),
@@ -77,6 +103,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     is_new_arrival BOOLEAN NOT NULL DEFAULT false,
     badge TEXT,
     thumbnail TEXT NOT NULL,
+    images TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     short_description TEXT NOT NULL,
     description TEXT NOT NULL,
     specs JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -201,7 +228,7 @@ CREATE INDEX IF NOT EXISTS idx_addresses_user ON public.addresses(user_id);
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number TEXT NOT NULL UNIQUE,
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     status TEXT NOT NULL DEFAULT 'PLACED' CHECK (
         status IN ('PLACED', 'CONFIRMED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED')
     ),
@@ -210,9 +237,12 @@ CREATE TABLE IF NOT EXISTS public.orders (
     delivery_charge NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (delivery_charge >= 0),
     total_amount NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0),
     payment_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'FAILED', 'REFUNDED')),
-    payment_method TEXT NOT NULL DEFAULT 'RAZORPAY' CHECK (payment_method IN ('RAZORPAY', 'COD', 'UPI', 'CARD', 'APPLE_PAY')),
+    payment_method TEXT NOT NULL DEFAULT 'RAZORPAY',
     shipping_address JSONB NOT NULL,
     estimated_delivery_date TIMESTAMPTZ,
+    carrier TEXT DEFAULT 'Nexora Express Priority',
+    tracking_number TEXT,
+    timeline JSONB NOT NULL DEFAULT '[]'::jsonb,
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW())
@@ -248,6 +278,7 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order ON public.order_items(order_id)
 CREATE TABLE IF NOT EXISTS public.payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     razorpay_order_id TEXT,
     razorpay_payment_id TEXT UNIQUE,
     razorpay_signature TEXT,
@@ -272,11 +303,10 @@ CREATE INDEX IF NOT EXISTS idx_payments_razorpay_order ON public.payments(razorp
 CREATE TABLE IF NOT EXISTS public.order_tracking_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    status TEXT NOT NULL CHECK (
-        status IN ('PLACED', 'CONFIRMED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED')
-    ),
+    status TEXT NOT NULL,
     description TEXT NOT NULL,
-    location TEXT,
+    carrier TEXT,
+    tracking_number TEXT,
     updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW())
 );
@@ -314,3 +344,38 @@ CREATE TABLE IF NOT EXISTS public.recently_viewed_products (
 );
 
 CREATE INDEX IF NOT EXISTS idx_recently_viewed_user ON public.recently_viewed_products(user_id);
+
+-- --------------------------------------------------------------------
+-- AUTOMATED AUTH HOOK / USER PROFILE TRIGGER
+-- --------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (id, email, full_name)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1))
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = EXCLUDED.full_name;
+
+    INSERT INTO public.user_roles (user_id, role)
+    VALUES (NEW.id, 'customer')
+    ON CONFLICT (user_id, role) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger execution on auth.users registration
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'auth' AND tablename = 'users') THEN
+        DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+        CREATE TRIGGER on_auth_user_created
+            AFTER INSERT ON auth.users
+            FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+    END IF;
+END $$;
