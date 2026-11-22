@@ -1,0 +1,58 @@
+import { Category } from "../types";
+
+export const categories: Category[] = [
+  {
+    id: "cat-1",
+    slug: "electronics",
+    name: "Electronics",
+    description: "Next-generation smartphones, spatial audio earbuds, GaN power banks, and personal computing slates.",
+    image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop&q=80",
+    itemCount: 184,
+    subcategories: ["Mobiles & Phones", "AirPods & Audio", "Power Banks & Fast Charging", "Laptops & Slates", "Smart Home & Display"],
+  },
+  {
+    id: "cat-2",
+    slug: "fashion",
+    name: "Fashion",
+    description: "Architectural trench coats, technical dresses, merino wool tailoring, and luxury minimalist footwear.",
+    image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800&auto=format&fit=crop&q=80",
+    itemCount: 260,
+    subcategories: ["Dresses & Skirts", "Outerwear & Coats", "Tailored Suits & Blazers", "Knitwear & Sweaters", "Minimal Footwear", "Essentials & Hoodies"],
+  },
+  {
+    id: "cat-3",
+    slug: "home-and-living",
+    name: "Home & Living",
+    description: "Solid oak ergonomic seating, motorized standing desks, Japanese culinary knives, and ambient ultrasonic diffusers.",
+    image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&auto=format&fit=crop&q=80",
+    itemCount: 215,
+    subcategories: ["Furniture & Seating", "Ergonomic Desks", "Ceramics & Kitchenware", "Air Purifiers & Diffusers", "Architectural Lighting", "Luxury Bedding"],
+  },
+  {
+    id: "cat-4",
+    slug: "beauty",
+    name: "Beauty & Wellness",
+    description: "Bio-active cellular serums, artisanal botanical fragrances, facial sculpting micro-current devices, and beard elixirs.",
+    image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&auto=format&fit=crop&q=80",
+    itemCount: 128,
+    subcategories: ["Cellular Skincare", "Facial Sculpting Tech", "Artisanal Fragrance", "Grooming & Beard", "Cleansers & Masks"],
+  },
+  {
+    id: "cat-5",
+    slug: "sports",
+    name: "Sports & Performance",
+    description: "Carbon propulsion trail runners, magnetic quick-change dumbbells, percussion massage guns, and hydration gear.",
+    image: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80",
+    itemCount: 140,
+    subcategories: ["Trail & Running Shoes", "Smart Gym & Dumbbells", "Recovery Percussion", "Hydration Gear", "Performance Apparel"],
+  },
+  {
+    id: "cat-6",
+    slug: "accessories",
+    name: "Accessories",
+    description: "Titanium chronographs, RFID carbon wallets, Italian leather weekenders, mechanical keyboards, and blue-light eyewear.",
+    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop&q=80",
+    itemCount: 195,
+    subcategories: ["Timepieces & Watches", "Cardholders & EDC", "Leather Travel Bags", "Eyewear", "Mechanical Keyboards", "Tech Cases"],
+  },
+];

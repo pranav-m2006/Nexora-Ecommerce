@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --background: #F8F8F4;
+  --surface: #FFFFFF;
+  --charcoal: #171A18;
+  --muted: #747A75;
+  --lime: #C8F169;
+  --border: #E6E6DF;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--charcoal);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F0EFE8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C4C4BC;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A0A096;
+}
+
+/* Hide scrollbar completely for elements with .no-scrollbar or .scrollbar-none */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Accessible focus outline */
+:focus-visible {
+  outline: 2px solid #171A18;
+  outline-offset: 2px;
+}
+
+/* Custom utility classes */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center font-medium px-5 py-2.5 rounded-lg bg-charcoal text-white hover:bg-charcoal-50 active:scale-[0.99] transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center font-semibold px-5 py-2.5 rounded-lg bg-lime text-charcoal hover:bg-lime-hover active:scale-[0.99] transition-all duration-150 shadow-sm disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center font-medium px-5 py-2.5 rounded-lg bg-white border border-borderNeutral text-charcoal hover:bg-ivory-200 active:scale-[0.99] transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .badge-lime {
+    @apply inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-lime text-charcoal;
+  }
+
+  .badge-dark {
+    @apply inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-charcoal text-white;
+  }
+
+  .badge-muted {
+    @apply inline-flex items-center text-xs font-medium px-2 py-0.5 rounded bg-ivory-200 text-muted-dark;
+  }
+}
