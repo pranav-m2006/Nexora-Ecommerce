@@ -61,6 +61,51 @@ export const aiAssistantService = {
       recommended = recommended.filter((p) => p.price <= maxBudget);
     }
 
+    // Call live Google Gemini API if GEMINI_API_KEY is configured
+    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "your_gemini_api_key") {
+      try {
+        const topCatalog = (recommended.length > 0 ? recommended : products).slice(0, 5);
+        const catalogContext = topCatalog
+          .map((p) => `- ${p.name} ($${p.price}) in ${p.category} (${p.subcategory}): ${p.shortDescription}`)
+          .join("\n");
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `You are the NEXORA Intelligent Shopping Concierge for a luxury minimalist e-commerce marketplace. The shopper asks: "${prompt}".\nRelevant inventory:\n${catalogContext}\nProvide a concise, sophisticated 2-3 sentence recommendation explaining which items best fit their request.`,
+                    },
+                  ],
+                },
+              ],
+              generationConfig: {
+                maxOutputTokens: 250,
+                temperature: 0.7,
+              },
+            }),
+            signal: AbortSignal.timeout(4000),
+          }
+        );
+
+        if (res.ok) {
+          const geminiData = await res.json();
+          const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text && text.trim().length > 0) {
+            reply = text.trim();
+          }
+        }
+      } catch (err) {
+        // Fallback to grounded catalog reply if Gemini API is unreachable or rate limited
+        console.warn("Gemini API call fallback to deterministic response:", err);
+      }
+    }
+
     return {
       reply,
       recommendedProducts: recommended.slice(0, 4),
